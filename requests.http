@@ -1,0 +1,26 @@
+@token={{$dotenv TELEGRAM_BOT_TOKEN}}
+@baseUrl=https://api.telegram.org/bot{{token}}
+@apiKey={{$dotenv API_KEY}}
+
+###
+GET {{baseUrl}}/getMe HTTP/1.1
+
+###
+GET {{baseUrl}}/getUpdates HTTP/1.1
+
+###
+GET {{baseUrl}}/getWebhookInfo HTTP/1.1
+
+###
+POST https://hglaz1bvodcpbrt7wtejsk0t2ib8zrti.lambda-url.eu-central-1.on.aws/?apiKey={{apiKey}} HTTP/1.1
+Content-Type: application/json
+
+{
+  "deviceId": "Zgcz0eVOlEGg7KDVf--RB",
+  "event": "sms:received",
+  "payload": {
+    "message": "Hello from Dr. Turk",
+    "phoneNumber": "+19162255887",
+    "receivedAt": "2024-06-20T12:00:20.000+07:00"
+  }
+}

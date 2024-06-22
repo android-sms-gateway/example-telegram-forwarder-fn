@@ -1,0 +1,22 @@
+{
+  "name": "example-telegram-forwarder-fn",
+  "version": "1.0.0",
+  "description": "Example Cloud Function to forward incoming SMS received using `SMS Gateway for Android` Webhooks to Telegram",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "sms",
+    "forwarder",
+    "nodejs",
+    "javascript",
+    "cloud",
+    "functions",
+    "telegram",
+    "webhooks",
+    "smsgateway"
+  ],
+  "author": "Aleksandr Soloshenko",
+  "license": "Apache-2.0"
+}

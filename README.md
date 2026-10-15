@@ -10,7 +10,7 @@ A zero-dependency Node.js cloud function that forwards SMS messages received thr
 
 ## 📖 About
 
-This example is a single-file [Node.js](https://nodejs.org/) function ([index.js](index.js)) with no external packages: it validates an API key, parses the incoming SMS webhook, and sends the message to a Telegram chat via the Bot API. Deploy it to any FaaS platform that provides the standard `(event, context)` handler signature, such as AWS Lambda or Google Cloud Functions.
+This example is a single-file [Node.js](https://nodejs.org/) function ([index.js](index.js)) with no external packages: it validates an API key, parses the incoming SMS webhook, and sends the message to a Telegram chat via the Bot API. Deploy it to AWS Lambda, or another platform that accepts a Lambda-compatible HTTP event and proxy-response contract.
 
 ## 📚 Table of Contents
 
@@ -61,22 +61,28 @@ cd example-telegram-forwarder-fn
 
 ### Deploy to AWS Lambda
 
-The repository ships no provider configuration - [index.js](index.js) exposes `module.exports.handler`, the standard Lambda signature. Package the function, create the function with the three environment variables, then register its URL as a webhook:
+The repository ships no provider configuration - [index.js](index.js) exposes `module.exports.handler`, the standard Lambda signature. Package the function, create the function with the three environment variables, expose it over HTTP with a Function URL, then register that URL as a webhook:
 
 ```bash
 zip function.zip index.js
 aws lambda create-function \
   --function-name smsgate-telegram-forwarder \
-  --runtime nodejs20.x \
+  --runtime nodejs24.x \
   --handler index.handler \
   --role arn:aws:iam::<ACCOUNT_ID>:role/<LAMBDA_ROLE> \
   --zip-file fileb://function.zip
 aws lambda update-function-configuration \
   --function-name smsgate-telegram-forwarder \
   --environment "Variables={API_KEY=...,TELEGRAM_BOT_TOKEN=...,TELEGRAM_CHAT_ID=...}"
+aws lambda create-function-url-config \
+  --function-name smsgate-telegram-forwarder \
+  --auth-type NONE \
+  --invoke-mode BUFFERED
 ```
 
-4. Register the deployed URL as a webhook in SMS Gateway for Android, appending `?apiKey=<YOUR_API_KEY>` as a query parameter - the handler rejects requests without a matching key with `401 Unauthorized`.
+The last command prints the function URL to use in the next step. Because `--auth-type NONE` makes the endpoint public, `API_KEY` is the only thing protecting it - use a long random value and rotate it if it leaks.
+
+4. Register the function URL printed above as a webhook in SMS Gateway for Android, appending `?apiKey=<YOUR_API_KEY>` as a query parameter - the handler rejects requests without a matching key with `401 Unauthorized`.
 
 ## 💻 Usage
 
@@ -88,7 +94,7 @@ curl -X POST "https://<YOUR_FUNCTION_URL>/?apiKey=<YOUR_API_KEY>" \
   -d '{"payload":{"phoneNumber":"+12025550123","message":"Hello from SMSGate"}}'
 ```
 
-The function answers `200 OK` and the message arrives in the configured Telegram chat. [requests.http](requests.http) contains ready-made REST Client requests: bot `getMe`, `getUpdates`, `getWebhookInfo`, and a sample webhook POST.
+The function answers `200 OK` after the Telegram API returns an HTTP response - this does not confirm that Telegram accepted or delivered the message. [requests.http](requests.http) contains ready-made REST Client requests: bot `getMe`, `getUpdates`, `getWebhookInfo`, and a sample webhook POST.
 
 ## 🔌 How It Works
 
@@ -97,7 +103,7 @@ The webhook flow, all in [index.js](index.js):
 1. `handler` validates `event.queryStringParameters.apiKey` against `API_KEY` (returns 401 on mismatch)
 2. The body is parsed and `escapeHTML()` sanitizes the message for Telegram
 3. `sendMessage` is called on the Telegram Bot API with HTML parse mode
-4. The function returns `200 OK` on success
+4. The function returns `200 OK` once the Telegram API responds; the handler does not inspect that response, so this does not confirm that Telegram accepted or delivered the message
 
 ## 📚 Documentation
 

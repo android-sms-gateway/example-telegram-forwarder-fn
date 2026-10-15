@@ -1,182 +1,133 @@
-<!-- Improved compatibility of back to top link: See: https://github.com/othneildrew/Best-README-Template/pull/73 -->
-<a id="readme-top"></a>
+# 🧪 SMSGate Telegram Forwarder Function
 
-<!-- PROJECT SHIELDS -->
-[![License][license-shield]][license-url]
-[![Issues][issues-shield]][issues-url]
+[![Contributors][contributors-shield]][contributors-url]
+[![Forks][forks-shield]][forks-url]
 [![Stars][stars-shield]][stars-url]
+[![Issues][issues-shield]][issues-url]
+[![License][license-shield]][license-url]
 
+A zero-dependency Node.js cloud function that forwards SMS messages received through SMSGate webhooks to a Telegram chat. Part of the SMSGate ecosystem - see the [webhooks guide](https://docs.sms-gate.app/getting-started/webhooks/) for how SMSGate delivers events.
 
+## 📖 About
 
-<!-- PROJECT TITLE -->
-<br />
-<div align="center">
-  <h3 align="center">Example Telegram Forwarder Function</h3>
+This example is a single-file [Node.js](https://nodejs.org/) function ([index.js](index.js)) with no external packages: it validates an API key, parses the incoming SMS webhook, and sends the message to a Telegram chat via the Bot API. Deploy it to AWS Lambda, or another platform that accepts a Lambda-compatible HTTP event and proxy-response contract.
 
-  <p align="center">
-    Zero-dependency cloud function to forward SMS messages to Telegram
-    <br />
-    <a href="https://github.com/android-sms-gateway/example-telegram-forwarder-fn"><strong>Explore the repo »</strong></a>
-    <br />
-    <br />
-    <a href="https://github.com/android-sms-gateway/example-telegram-forwarder-fn/issues/new?labels=bug">Report Bug</a>
-    &middot;
-    <a href="https://github.com/android-sms-gateway/example-telegram-forwarder-fn/issues/new?labels=enhancement">Request Feature</a>
-  </p>
-</div>
+## 📚 Table of Contents
 
+- [📖 About](#-about)
+- [📚 Table of Contents](#-table-of-contents)
+- [⭐ Features](#-features)
+- [📦 Prerequisites](#-prerequisites)
+- [🚀 Quickstart](#-quickstart)
+- [💻 Usage](#-usage)
+- [🔌 How It Works](#-how-it-works)
+- [📚 Documentation](#-documentation)
+- [🤝 Contributing](#-contributing)
+- [⚖️ License](#️-license)
 
+## ⭐ Features
 
-<!-- TABLE OF CONTENTS -->
-- [About The Project](#about-the-project)
-  - [Built With](#built-with)
-- [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Setup](#setup)
-    - [Environment Variables](#environment-variables)
-- [Usage](#usage)
-- [Testing](#testing)
-- [Contributing](#contributing)
-- [License](#license)
-- [Contact](#contact)
-- [Acknowledgments](#acknowledgments)
+- Zero dependencies - native `fetch` only, Node.js 18+
+- API key validation on the webhook URL (`apiKey` query parameter)
+- HTML-escaped message bodies for Telegram HTML parse mode
+- Manual test requests in [requests.http](requests.http)
 
+## 📦 Prerequisites
 
-<!-- ABOUT THE PROJECT -->
-## About The Project
+- Node.js 18+ (required for native `fetch`)
+- SMS Gateway for Android installed and configured on a device
+- A Telegram bot token from [BotFather](https://core.telegram.org/bots)
+- A Telegram chat ID where messages will be forwarded
+- A random `API_KEY` secret for webhook authentication
 
-This repository contains a zero-dependency [cloud function](https://en.wikipedia.org/wiki/Function_as_a_service) that forwards incoming SMS messages received through [SMSGate App](https://github.com/capcom6/android-sms-gateway) webhooks to a specified Telegram chat. The entire implementation is a single Node.js file with no external packages.
+## 🚀 Quickstart
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+1. Clone the repository:
 
+```bash
+git clone https://github.com/android-sms-gateway/example-telegram-forwarder-fn.git
+cd example-telegram-forwarder-fn
+```
 
+2. No dependencies to install - the handler uses only Node.js built-ins.
 
-### Built With
+3. Configure the environment variables from [.env.example](.env.example):
 
-* [![Node.js][Nodejs-shield]][Nodejs-url] — native `fetch`, zero dependencies
-* [![Telegram][Telegram-shield]][Telegram-url] — Bot API (`sendMessage`)
+| Variable | Description |
+| -------- | ----------- |
+| `API_KEY` | Secret passed as the `apiKey` query parameter on the webhook URL |
+| `TELEGRAM_BOT_TOKEN` | Telegram bot token from BotFather |
+| `TELEGRAM_CHAT_ID` | Chat ID where messages will be forwarded |
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+### Deploy to AWS Lambda
 
+The repository ships no provider configuration - [index.js](index.js) exposes `module.exports.handler`, the standard Lambda signature. Package the function, create the function with the three environment variables, expose it over HTTP with a Function URL, then register that URL as a webhook:
 
+```bash
+zip function.zip index.js
+aws lambda create-function \
+  --function-name smsgate-telegram-forwarder \
+  --runtime nodejs24.x \
+  --handler index.handler \
+  --role arn:aws:iam::<ACCOUNT_ID>:role/<LAMBDA_ROLE> \
+  --zip-file fileb://function.zip
+aws lambda update-function-configuration \
+  --function-name smsgate-telegram-forwarder \
+  --environment "Variables={API_KEY=...,TELEGRAM_BOT_TOKEN=...,TELEGRAM_CHAT_ID=...}"
+aws lambda create-function-url-config \
+  --function-name smsgate-telegram-forwarder \
+  --auth-type NONE \
+  --invoke-mode BUFFERED
+```
 
-<!-- GETTING STARTED -->
-## Getting Started
+The last command prints the function URL to use in the next step. Because `--auth-type NONE` makes the endpoint public, `API_KEY` is the only thing protecting it - use a long random value and rotate it if it leaks.
 
-### Prerequisites
+4. Register the function URL printed above as a webhook in SMS Gateway for Android, appending `?apiKey=<YOUR_API_KEY>` as a query parameter - the handler rejects requests without a matching key with `401 Unauthorized`.
 
-- **Node.js 18+** (required for native `fetch`)
-- **SMSGate App** installed on your device in Local, Cloud, or Private mode
-- A **Telegram bot** and its token — create one via [BotFather](https://core.telegram.org/bots/features#botfather)
-- A **Telegram chat ID** where messages will be forwarded
+## 💻 Usage
 
-### Setup
+Send a test webhook:
 
-1. Clone the repository
-   ```sh
-   git clone https://github.com/android-sms-gateway/example-telegram-forwarder-fn.git
-   ```
-2. No dependencies to install — the function uses only Node.js built-in APIs. Run `npm install` only if you add external packages.
-3. Set up your environment variables (see [Environment Variables](#environment-variables))
-4. Deploy to your preferred cloud provider (AWS Lambda, Google Cloud Functions, etc.). The handler uses the standard `(event, context)` FaaS signature. You may need to adapt the entry point — consult your provider's documentation.
-5. [Register a webhook in SMSGate App](https://docs.sms-gate.app/getting-started/webhooks/) with the URL of your deployed function, appending `?apiKey=YOUR_API_KEY` as a query parameter.
+```bash
+curl -X POST "https://<YOUR_FUNCTION_URL>/?apiKey=<YOUR_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{"payload":{"phoneNumber":"+12025550123","message":"Hello from SMSGate"}}'
+```
 
-#### Environment Variables
+The function answers `200 OK` after the Telegram API returns an HTTP response - this does not confirm that Telegram accepted or delivered the message. [requests.http](requests.http) contains ready-made REST Client requests: bot `getMe`, `getUpdates`, `getWebhookInfo`, and a sample webhook POST.
 
-| Variable             | Description                                                                      |
-| -------------------- | -------------------------------------------------------------------------------- |
-| `API_KEY`            | Random secret for webhook authentication, passed as the `apiKey` query parameter |
-| `TELEGRAM_BOT_TOKEN` | Token of your Telegram bot (from BotFather)                                      |
-| `TELEGRAM_CHAT_ID`   | ID of the Telegram chat where messages will be forwarded                         |
+## 🔌 How It Works
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+The webhook flow, all in [index.js](index.js):
 
+1. `handler` validates `event.queryStringParameters.apiKey` against `API_KEY` (returns 401 on mismatch)
+2. The body is parsed and `escapeHTML()` sanitizes the message for Telegram
+3. `sendMessage` is called on the Telegram Bot API with HTML parse mode
+4. The function returns `200 OK` once the Telegram API responds; the handler does not inspect that response, so this does not confirm that Telegram accepted or delivered the message
 
+## 📚 Documentation
 
-<!-- USAGE -->
-## Usage
+- [Central docs](https://docs.sms-gate.app/)
+- [Webhooks guide](https://docs.sms-gate.app/getting-started/webhooks/)
+- [Telegram Bot API](https://core.telegram.org/bots/api)
+- [GitHub repository](https://github.com/android-sms-gateway/example-telegram-forwarder-fn)
 
-The function is triggered by incoming webhook events from SMSGate App. Upon receiving an SMS, it:
+## 🤝 Contributing
 
-1. Validates the `apiKey` query parameter against `API_KEY` (returns `401 Unauthorized` on mismatch)
-2. Parses the webhook JSON payload — expects `payload.phoneNumber` and `payload.message`
-3. Escapes HTML special characters in the message body
-4. Sends a formatted message to Telegram via the Bot API (`sendMessage`) with HTML parse mode
-5. Returns `200 OK` on success
+Contributions are welcome - open an issue or submit a pull request on the [GitHub repository](https://github.com/android-sms-gateway/example-telegram-forwarder-fn).
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+## ⚖️ License
 
+Apache-2.0. See [LICENSE](LICENSE).
 
-
-<!-- TESTING -->
-## Testing
-
-A [`requests.http`](requests.http) file is provided for manual testing with the [REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client) extension for VS Code. It includes:
-
-- Endpoints to verify your Telegram bot (`getMe`, `getUpdates`, `getWebhookInfo`)
-- A sample POST request against a deployed Lambda URL with a realistic SMS webhook payload
-
-For local testing with the REST Client extension: create a `.env` file (use [`.env.example`](.env.example) as a template) — the `$dotenv` placeholders in `requests.http` read from it automatically. Then open `requests.http` and click **Send Request** above each block.
-For cloud or hosted deployments, set these variables through your provider's environment configuration (e.g., AWS Lambda environment variables, Google Cloud Functions `--set-env-vars`) instead of a `.env` file.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
-
-<!-- CONTRIBUTING -->
-## Contributing
-
-Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
-
-If you have a suggestion that would make this better, please fork the repo and create a pull request. You can also simply open an issue. Don't forget to give the project a star!
-
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
-
-<!-- LICENSE -->
-## License
-
-Distributed under the Apache-2.0 License. See [`LICENSE`](LICENSE) for more information.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
-
-<!-- CONTACT -->
-## Contact
-
-Project Link: [https://github.com/android-sms-gateway/example-telegram-forwarder-fn](https://github.com/android-sms-gateway/example-telegram-forwarder-fn)
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
-
-<!-- ACKNOWLEDGMENTS -->
-## Acknowledgments
-
-* [Telegram Bot API](https://core.telegram.org/bots/api)
-* [BotFather](https://core.telegram.org/bots/features#botfather)
-* [Best-README-Template](https://github.com/othneildrew/Best-README-Template)
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
-
-<!-- MARKDOWN LINKS -->
-[license-shield]: https://img.shields.io/github/license/android-sms-gateway/example-telegram-forwarder-fn?style=for-the-badge
-[license-url]: https://github.com/android-sms-gateway/example-telegram-forwarder-fn/blob/main/LICENSE
-[issues-shield]: https://img.shields.io/github/issues/android-sms-gateway/example-telegram-forwarder-fn?style=for-the-badge
-[issues-url]: https://github.com/android-sms-gateway/example-telegram-forwarder-fn/issues
+<!-- Reference-style badge URLs: style=for-the-badge is mandatory -->
+[contributors-shield]: https://img.shields.io/github/contributors/android-sms-gateway/example-telegram-forwarder-fn?style=for-the-badge
+[contributors-url]: https://github.com/android-sms-gateway/example-telegram-forwarder-fn/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/android-sms-gateway/example-telegram-forwarder-fn?style=for-the-badge
+[forks-url]: https://github.com/android-sms-gateway/example-telegram-forwarder-fn/network/members
 [stars-shield]: https://img.shields.io/github/stars/android-sms-gateway/example-telegram-forwarder-fn?style=for-the-badge
 [stars-url]: https://github.com/android-sms-gateway/example-telegram-forwarder-fn/stargazers
-[Nodejs-shield]: https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white
-[Nodejs-url]: https://nodejs.org/
-[Telegram-shield]: https://img.shields.io/badge/Telegram-26A5E4?style=for-the-badge&logo=telegram&logoColor=white
-[Telegram-url]: https://core.telegram.org/bots/api
+[issues-shield]: https://img.shields.io/github/issues/android-sms-gateway/example-telegram-forwarder-fn?style=for-the-badge
+[issues-url]: https://github.com/android-sms-gateway/example-telegram-forwarder-fn/issues
+[license-shield]: https://img.shields.io/github/license/android-sms-gateway/example-telegram-forwarder-fn?style=for-the-badge
+[license-url]: https://github.com/android-sms-gateway/example-telegram-forwarder-fn/blob/master/LICENSE
